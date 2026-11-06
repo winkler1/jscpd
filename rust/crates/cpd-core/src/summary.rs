@@ -58,9 +58,17 @@ pub struct FileSummary {
     pub bytes: u64,
     pub duplicated_lines: u64,
     pub duplicated_tokens: u64,
-    /// Cyclomatic-complexity estimate: 1 + count of decision-point tokens
-    /// (`if`, `for`, `while`, `case`, `catch`, `&&`, `||`, `?`, …).
+    /// Cyclomatic-complexity estimate: baseline plus decision count.
     pub complexity: u64,
+    /// Functions recognized by the token scanner, before the per-file fallback.
+    #[serde(default)]
+    pub function_count: u64,
+    /// Decision points recognized by the same scan that computes complexity.
+    #[serde(default)]
+    pub decision_count: u64,
+    /// max(function_count, 1) for code; zero for prose, data and markup.
+    #[serde(default)]
+    pub complexity_baseline: u64,
 }
 
 /// Per-folder rollup. Files are counted in their direct parent directory only
@@ -562,11 +570,16 @@ const PARENTHESISED_STATEMENTS: &[&str] = &[
 /// README or an HTML attribute is a word, and a lock file full of `||`
 /// version ranges is not code.
 pub fn file_complexity(tokens: &[Token], format: &str) -> u64 {
+    let (decisions, _, baseline) = file_complexity_components(tokens, format);
+    baseline + decisions
+}
+
+fn file_complexity_components(tokens: &[Token], format: &str) -> (u64, u64, u64) {
     if !is_code(format) {
-        return 0;
+        return (0, 0, 0);
     }
     let (decisions, functions) = scan_complexity(tokens, &rules_for(format));
-    functions.max(1) + decisions
+    (decisions, functions, functions.max(1))
 }
 
 /// The complexity of the code from byte `start` to byte `end` of a file with
@@ -769,13 +782,18 @@ pub fn compute_summary(
                 .max()
                 .unwrap_or(0) as u64;
             let (duplicated_lines, duplicated_tokens) = dup.get(&path).copied().unwrap_or_default();
+            let (decision_count, function_count, complexity_baseline) =
+                file_complexity_components(&source.tokens, &source.format);
             FileSummary {
                 lines,
                 tokens: source.tokens.len() as u64,
                 bytes: source.bytes,
                 duplicated_lines,
                 duplicated_tokens,
-                complexity: file_complexity(&source.tokens, &source.format),
+                complexity: complexity_baseline + decision_count,
+                function_count,
+                decision_count,
+                complexity_baseline,
                 format: source.format.clone(),
                 path,
             }

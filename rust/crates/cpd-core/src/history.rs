@@ -392,6 +392,9 @@ mod tests {
                 duplicated_lines: 0,
                 duplicated_tokens: 0,
                 complexity: 10,
+                function_count: 1,
+                decision_count: 9,
+                complexity_baseline: 1,
             })
             .collect();
         let summary = crate::summary::Summary {

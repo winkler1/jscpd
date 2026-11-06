@@ -964,6 +964,9 @@ mod tests {
             duplicated_lines: 0,
             duplicated_tokens: 0,
             complexity: 0,
+            function_count: 0,
+            decision_count: 0,
+            complexity_baseline: 0,
         };
         let summary = Summary {
             by: SummaryMetric::Complexity,

@@ -566,6 +566,9 @@ mod tests {
             duplicated_lines: 0,
             duplicated_tokens: 0,
             complexity,
+            function_count: 1,
+            decision_count: complexity.saturating_sub(1),
+            complexity_baseline: 1,
         }
     }
 

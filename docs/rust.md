@@ -219,6 +219,8 @@ jscpd ./src --complexity --summary-top 20
 jscpd ./src --complexity --reporters ai --no-tips
 ```
 
+Each JSON `summary.files` row also exposes `functionCount` (actual functions recognized by the token scanner), `decisionCount` (recognized branches after language-specific adjustments), and `complexityBaseline` (the baseline used in the score). For code, `complexityBaseline = max(functionCount, 1)` and `complexity = complexityBaseline + decisionCount`. For prose, data and markup all four values are zero. These are token-based estimates, not AST function counts. Older JSON without these fields still deserializes, defaulting the new fields to zero; those defaults do not reconstruct historical components. Folder rows are unchanged: `complexity` is the sum of file scores for the direct parent directory (displayed as a per-file mean), with no component fields. File rows remain subject to `--summary-top` truncation.
+
 Prose, data and markup files (markdown, reStructuredText, AsciiDoc, text, logs, CSV, JSON, YAML, TOML, INI, properties, HTML/XML, CSS and the stylesheet and template languages built on markup) have complexity `0` in both `--complexity` and `--summary`: an "if" in a README or an HTML attribute is a word and `||` in a lock file is a version range. Component formats such as Vue, Svelte and Astro still count — their script blocks are code.
 
 ### Dashboard

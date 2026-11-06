@@ -226,6 +226,9 @@ mod tests {
                 duplicated_lines: 10,
                 duplicated_tokens: 50,
                 complexity: 7,
+                function_count: 1,
+                decision_count: 6,
+                complexity_baseline: 1,
             }],
             folders: vec![FolderSummary {
                 path: "src".to_string(),

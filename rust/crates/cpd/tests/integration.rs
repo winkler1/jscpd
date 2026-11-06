@@ -1110,6 +1110,108 @@ fn complexity_reports_without_detecting_clones() {
     assert!(files.iter().all(|f| f["duplicatedLines"] == 0), "{report}");
 }
 
+/// Components preserve recognized functions separately from the file fallback.
+#[test]
+fn complexity_json_exposes_go_and_swift_components() {
+    if maybe_bin().is_none() {
+        return;
+    }
+    for (format, extension, whole, first, second, extracted, fallback) in [
+        (
+            "go",
+            "go",
+            "package demo\nfunc first(x bool) { if x { return } }\nfunc second(x bool) { if x { return } }\n",
+            "package demo\nfunc first(x bool) { if x { return } }\n",
+            "package demo\nfunc second(x bool) { if x { return } }\n",
+            "package demo\nfunc route(x bool) { helper(x) }\nfunc helper(x bool) { if x { return } }\n",
+            "package demo\nvar x = 1\n",
+        ),
+        (
+            "swift",
+            "swift",
+            "func first(_ x: Bool) { if x { return } }\nfunc second(_ x: Bool) { if x { return } }\n",
+            "func first(_ x: Bool) { if x { return } }\n",
+            "func second(_ x: Bool) { if x { return } }\n",
+            "func route(_ x: Bool) { helper(x) }\nfunc helper(_ x: Bool) { if x { return } }\n",
+            "let x = 1\n",
+        ),
+    ] {
+        let name = |stem: &str| format!("{stem}.{extension}");
+        let names = [
+            name("whole"),
+            name("first"),
+            name("second"),
+            name("extracted"),
+            name("fallback"),
+        ];
+        let dir = config_dir(
+            &format!("complexity-components-{format}"),
+            &[
+                (&names[0], whole),
+                (&names[1], first),
+                (&names[2], second),
+                (&names[3], extracted),
+                (&names[4], fallback),
+                ("data.json", "{\"if\": true}"),
+            ],
+        );
+        run_ok_in(
+            &dir,
+            &[
+                ".",
+                "--complexity",
+                "--summary-top",
+                "100",
+                "--min-tokens",
+                "1",
+                "--min-lines",
+                "1",
+                "-r",
+                "json",
+                "-o",
+                "out",
+            ],
+        );
+        let report = read_json(&dir.join("out/jscpd-complexity.json"));
+        std::fs::remove_dir_all(&dir).ok();
+        let files = report["summary"]["files"].as_array().unwrap();
+        let row = |path: &str| {
+            files
+                .iter()
+                .find(|f| f["path"] == path)
+                .unwrap_or_else(|| panic!("missing {path}: {report}"))
+        };
+        for (path, functions, decisions, baseline, score) in [
+            (names[0].as_str(), 2, 2, 2, 4),
+            (names[1].as_str(), 1, 1, 1, 2),
+            (names[2].as_str(), 1, 1, 1, 2),
+            (names[3].as_str(), 2, 1, 2, 3),
+            (names[4].as_str(), 0, 0, 1, 1),
+            ("data.json", 0, 0, 0, 0),
+        ] {
+            let file = row(path);
+            assert_eq!(file["functionCount"], functions, "{format}: {file}");
+            assert_eq!(file["decisionCount"], decisions, "{format}: {file}");
+            assert_eq!(file["complexityBaseline"], baseline, "{format}: {file}");
+            assert_eq!(file["complexity"], score, "{format}: {file}");
+        }
+        for field in [
+            "functionCount",
+            "decisionCount",
+            "complexityBaseline",
+            "complexity",
+        ] {
+            assert_eq!(
+                row(&names[0])[field].as_u64().unwrap(),
+                row(&names[1])[field].as_u64().unwrap() + row(&names[2])[field].as_u64().unwrap()
+            );
+        }
+        let folder = &report["summary"]["folders"][0];
+        assert_eq!(folder["complexity"], 12);
+        assert!(folder.get("functionCount").is_none());
+    }
+}
+
 /// `--dashboard`: one screen with every section, filled from one run.
 #[test]
 fn dashboard_shows_duplication_complexity_and_dead_code() {
